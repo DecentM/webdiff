@@ -78,6 +78,8 @@ fi
 curdate="$(date +""%s"")"
 curid="$(echo $1#$curdate | sha256sum | cut -d " " -f1)"
 
+SCRIPTPATH=$(cd $(dirname $0); pwd -P)
+
 printf "Downloading $1...\n"
 wget -q -E -H -k -K -p "$1"
 if [ -d "$1" ]; then
@@ -85,7 +87,7 @@ if [ -d "$1" ]; then
 	if [ -d "www.$1" ]; then
 		mv "www.$1" "$1"/
 	fi
-	contenthash="$(find -name $curdate#$1#$curid* -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
+	contenthash="$(find $1 -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	mv "$1" "$curdate#$1#$curid#$contenthash"
 	htmlhash="$(find $curdate#$1#$curid#$contenthash -name "*.html" -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	mv "$curdate#$1#$curid#$contenthash" "$curdate#$1#$curid#$contenthash#$htmlhash"
@@ -116,12 +118,20 @@ if [ "$(cat $dbfile | wc -l)" -gt "2" ]; then
 	secondnewest_n="$(($(cat $dbfile | wc -l) - 1))"
 	newest_chash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d "#" -f4)
 	secondnewest_chash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d "#" -f4)
+	newest_hhash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d "#" -f5)
+        secondnewest_hhash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d "#" -f5)
 
 	if [ "$secondnewest_chash" != "" ] && [ "$newest_chash" != "" ]; then
 		if [ "$secondnewest_chash" = "$newest_chash" ]; then
 			printf "There has been no change since last time\n"
 		else
 			printf "The site has changed since last time\n"
+			if [ "$secondnewest_hhash" = "$newest_hhash" ]; then
+				printf "This was a resource change, the HTML is the same!\n"
+			else
+				printf "There is a change in HTML, but resources could have been altered as well!\n"
+			fi
+			#echo "$SCRIPTPATH clean"
 		fi
 	else
 		printf "There has been an internal error, quitting..."
