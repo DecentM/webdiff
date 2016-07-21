@@ -1,6 +1,7 @@
 #!/bin/bash
 minargs=1
 dbfile="db.webdiff"
+qfile="q.cleanup"
 if [ $# != $minargs ]; then
     printf "Argument count must be $minargs, you provided $#\n"
     exit 1
@@ -11,25 +12,37 @@ if [ ! -f "$dbfile" ]; then
 	exit 1
 fi
 
+printf "Name#Seen date#Hash\n" > "$qfile"
+
 if [ "$1" = "cleanup" ]; then
 	printf "Cleaning up...\n"
 	for l in `cat "$dbfile"`
 	do
-		tormdate="$(echo $l | cut -d "#" -f1)"
-		tormname="$(echo $l | cut -d "#" -f2)"
-		tormhash="$(echo $l | cut -d "#" -f3)"
-		printf "I want to remove $l\n"
-		if [ ! -d "$l" ]; then
-			printf "$tormname doesn't exist! Something fishy happened!\n"
-			exit 2
+		if [ ! "$l" = "" ]; then
+			tormdate="$(echo $l | cut -d "#" -f1)"
+			tormname="$(echo $l | cut -d "#" -f2)"
+			tormhash="$(echo $l | cut -d "#" -f3)"
+			if [ ! -d "$l" ]; then
+				printf "$l doesn't exist! Something fishy happened!\n"
+				exit 2
+			fi
+			printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
+			rm -rf "$l/"
+			rm -rf "www.$l/"
+		else
+			printf "No need for cleaning here\n"
 		fi
-		printf "Removing $torm and www.$torm\n"
-		printf "Seen date: $(date -d @$tormdate)"
-		#rm -rf "$torm"
-		#rm -rf "www.$torm"
 	done
+	printf "Removed entries:\n\n"
+	cat "$qfile" | column -t -s "#"
+	printf "\n"
+	echo > "$dbfile"
 	printf "Cleanup finished!\n"
 	exit 0
+fi
+
+if [ "$1" = "list" ]; then
+	printf "So far, these sites have been downloaded:"
 fi
 
 printf "Webpage modificiation detector\n"
@@ -46,7 +59,7 @@ mv "www.$1" "$1"/
 mv "$1" "$curdate#$1#$curid"
 
 printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
-printf "$curdate#$1#$curid" >> "$dbfile"
+printf "$curdate#$1#$curid\n" >> "$dbfile"
 
 
 ## == End script == ##
