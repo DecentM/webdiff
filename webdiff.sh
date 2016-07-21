@@ -2,7 +2,7 @@
 minargs=1
 dbfile="db.webdiff"
 qfile="q.cleanup"
-dateformat="+%d/%m/%Y %H:%M"
+dateformat="+%d/%m/%Y %H:%M.%S"
 
 if [ $# != $minargs ]; then
     printf "Argument count must be $minargs, you provided $#\n"
@@ -32,7 +32,9 @@ if [ "$1" = "cleanup" ]; then
 			fi
 			printf "$tormname#$(date "$dateformat" -d @$tormdate)#$tormhash#$tormchash\n" >> "$qfile"
 			rm -rf "$l/"
-			rm -rf "www.$l/"
+			if [ -d "www.$1" ]; then
+				rm -rf "www.$l/"
+			fi
 			cleaned=1
 		fi
 	done
@@ -86,7 +88,7 @@ if [ -d "$1" ]; then
 	fi
 	contenthash="$(find $curdate#$1#$curid -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	mv "$1" "$curdate#$1#$curid#$contenthash"
-	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
+	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)\n"
 	printf "$curdate#$1#$curid#$contenthash\n" >> "$dbfile"
 else
 	printf "Downloading $1 was unsuccessful, quitting...\n"
