@@ -16,6 +16,7 @@ printf "Name#Seen date#Hash\n" > "$qfile"
 
 if [ "$1" = "cleanup" ]; then
 	printf "Cleaning up...\n"
+	cleaned=0
 	for l in `cat "$dbfile"`
 	do
 		if [ ! "$l" = "" ]; then
@@ -29,20 +30,39 @@ if [ "$1" = "cleanup" ]; then
 			printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
 			rm -rf "$l/"
 			rm -rf "www.$l/"
-		else
-			printf "No need for cleaning here\n"
+			cleaned=1
 		fi
 	done
-	printf "Removed entries:\n\n"
-	cat "$qfile" | column -t -s "#"
-	printf "\n"
+	if [ "$cleaned" = "1" ]; then
+		printf "Removed entries:\n\n"
+	        cat "$qfile" | column -t -s "#"
+       		printf "\n"
+	else
+		printf "No need to clean anything here\n"
+	fi
 	echo > "$dbfile"
+	rm -f "$qfile"
 	printf "Cleanup finished!\n"
 	exit 0
 fi
 
 if [ "$1" = "list" ]; then
-	printf "So far, these sites have been downloaded:"
+	printf "So far, these sites have been downloaded:\n\n"
+	for l in `cat "$dbfile"`
+        do
+                if [ ! "$l" = "" ]; then
+                        tormdate="$(echo $l | cut -d "#" -f1)"
+                        tormname="$(echo $l | cut -d "#" -f2)"
+                        tormhash="$(echo $l | cut -d "#" -f3)"
+                        if [ ! -d "$l" ]; then
+                                printf "$l doesn't exist! Something fishy happened!\n"
+                                exit 2
+                        fi
+                        printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
+                fi
+        done
+	cat "$qfile" | column -t -s "#"
+	exit 0
 fi
 
 printf "Webpage modificiation detector\n"
@@ -53,13 +73,17 @@ printf "ID: $curid\n"
 
 printf "\nDownloading $1...\n\n"
 wget -nv -E -H -k -K -p "$1"
-
-printf "\nReorganizing files...\n"
-mv "www.$1" "$1"/
-mv "$1" "$curdate#$1#$curid"
-
-printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
-printf "$curdate#$1#$curid\n" >> "$dbfile"
+if [ $? -eq 0 ]; then
+	printf "\nReorganizing files...\n"
+	mv "www.$1" "$1"/
+	mv "$1" "$curdate#$1#$curid"
+	
+	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
+	printf "$curdate#$1#$curid\n" >> "$dbfile"
+else
+	printf "$1 isn't a valid url, quitting...\n"
+	exit 1
+fi
 
 
 ## == End script == ##
