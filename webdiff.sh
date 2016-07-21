@@ -14,9 +14,9 @@ if [ ! -f "$dbfile" ]; then
 	exit 1
 fi
 
-printf "URL#Date (DD/MM/YYYY)#Name + Date hash#Content hash\n" > "$qfile"
+printf "URL#Date (DD/MM/YYYY)#Name + Date hash#Content hash#HTML hash\n" > "$qfile"
 
-if [ "$1" = "cleanup" ]; then
+if [ "$1" = "clean" ]; then
 	printf "Cleaning up...\n"
 	cleaned=0
 	for l in `cat "$dbfile"`
@@ -80,13 +80,13 @@ curid="$(echo $1#$curdate | sha256sum | cut -d " " -f1)"
 printf "ID: $curid\n"
 
 printf "\nDownloading $1...\n\n"
-wget -nv -E -H -k -K -p "$1"
+wget -q -E -H -k -K -p "$1"
 if [ -d "$1" ]; then
-	printf "\nReorganizing files...\n"
+	printf "\nReorganizing files and directories...\n"
 	if [ -d "www.$1" ]; then
 		mv "www.$1" "$1"/
 	fi
-	contenthash="$(find $curdate#$1#$curid -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
+	contenthash="$(find -name $curdate#$1#$curid* -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	mv "$1" "$curdate#$1#$curid#$contenthash"
 	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)\n"
 	printf "$curdate#$1#$curid#$contenthash\n" >> "$dbfile"
@@ -95,7 +95,21 @@ else
 	exit 1
 fi
 
-echo "Latest $1:"
+cbeforedate="0"
+for l in `cat "$dbfile" | grep -i "$1"`
+do
+	if [ ! "$l" = "" ]; then
+		cdate="$(echo $l | cut -d "#" -f1)"
+		cname="$(echo $l | cut -d "#" -f2)"
+		chash="$(echo $l | cut -d "#" -f3)"
+		cchash="$(echo $l | cut -d "#" -f4)"
+		if [ "$cbeforedate" -gt "$cdate" ]; then
+			newest="$chash"
+		fi
+		cbeforedate="$cdate"
+	fi
+done
+printf "Newest copy of $1 is on this line: $(($(cat $dbfile | wc -l) - 1))"
 
 
 ## == End script == ##
