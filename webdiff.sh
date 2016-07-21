@@ -47,21 +47,24 @@ if [ "$1" = "cleanup" ]; then
 fi
 
 if [ "$1" = "list" ]; then
-	printf "So far, these sites have been downloaded:\n\n"
-	for l in `cat "$dbfile"`
-        do
-                if [ ! "$l" = "" ]; then
-                        tormdate="$(echo $l | cut -d "#" -f1)"
-                        tormname="$(echo $l | cut -d "#" -f2)"
-                        tormhash="$(echo $l | cut -d "#" -f3)"
-                        if [ ! -d "$l" ]; then
-                                printf "$l doesn't exist! Something fishy happened!\n"
-                                exit 2
-                        fi
-                        printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
-                fi
-        done
-	cat "$qfile" | column -t -s "#"
+	if [ "$(cat $dbfile)" == "" ]; then
+		printf "There are no downloaded sites!\n"
+		rm -f "$qfile"
+		exit 0
+	else
+		printf "So far, these sites have been downloaded:\n\n"
+		for l in `cat "$dbfile"`
+        	do
+        	        if [ ! "$l" = "" ]; then
+        	                tormdate="$(echo $l | cut -d "#" -f1)"
+        	                tormname="$(echo $l | cut -d "#" -f2)"
+                	        tormhash="$(echo $l | cut -d "#" -f3)"
+                	        printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
+                	fi
+        	done
+		cat "$qfile" | column -t -s "#"
+	fi
+	rm -f "$qfile"
 	exit 0
 fi
 
@@ -73,7 +76,7 @@ printf "ID: $curid\n"
 
 printf "\nDownloading $1...\n\n"
 wget -nv -E -H -k -K -p "$1"
-if [ $? -eq 0 ]; then
+if [ -d "$1" ]; then
 	printf "\nReorganizing files...\n"
 	mv "www.$1" "$1"/
 	mv "$1" "$curdate#$1#$curid"
@@ -81,10 +84,9 @@ if [ $? -eq 0 ]; then
 	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
 	printf "$curdate#$1#$curid\n" >> "$dbfile"
 else
-	printf "$1 isn't a valid url, quitting...\n"
+	printf "Downloading $1 was unsuccessful, quitting...\n"
 	exit 1
 fi
-
 
 ## == End script == ##
 printf "\n"
