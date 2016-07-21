@@ -2,6 +2,8 @@
 minargs=1
 dbfile="db.webdiff"
 qfile="q.cleanup"
+dateformat="+%d/%m/%Y %H:%M"
+
 if [ $# != $minargs ]; then
     printf "Argument count must be $minargs, you provided $#\n"
     exit 1
@@ -12,7 +14,7 @@ if [ ! -f "$dbfile" ]; then
 	exit 1
 fi
 
-printf "Name#Seen date#Hash\n" > "$qfile"
+printf "URL#Date (DD/MM/YYYY)#Name + Date hash#Content hash\n" > "$qfile"
 
 if [ "$1" = "cleanup" ]; then
 	printf "Cleaning up...\n"
@@ -27,7 +29,7 @@ if [ "$1" = "cleanup" ]; then
 				printf "$l doesn't exist! Something fishy happened!\n"
 				exit 2
 			fi
-			printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
+			printf "$tormname#$(date "$dateformat" -d @$tormdate)#$tormhash\n" >> "$qfile"
 			rm -rf "$l/"
 			rm -rf "www.$l/"
 			cleaned=1
@@ -56,10 +58,11 @@ if [ "$1" = "list" ]; then
 		for l in `cat "$dbfile"`
         	do
         	        if [ ! "$l" = "" ]; then
-        	                tormdate="$(echo $l | cut -d "#" -f1)"
-        	                tormname="$(echo $l | cut -d "#" -f2)"
-                	        tormhash="$(echo $l | cut -d "#" -f3)"
-                	        printf "$tormname#$(date -d @$tormdate)#$tormhash\n" >> "$qfile"
+        	                tolsdate="$(echo $l | cut -d "#" -f1)"
+        	                tolsname="$(echo $l | cut -d "#" -f2)"
+                	        tolshash="$(echo $l | cut -d "#" -f3)"
+				tolschash="$(echo $l | cut -d "#" -f3)"
+                	        printf "$tolsname#$(date "$dateformat" -d @$tolsdate)#$tolshash#$tolschash\n" >> "$qfile"
                 	fi
         	done
 		cat "$qfile" | column -t -s "#"
@@ -71,7 +74,7 @@ fi
 printf "Webpage modificiation detector\n"
 
 curdate="$(date +""%s"")"
-curid="$(echo $curdate | sha256sum | cut -d " " -f1)"
+curid="$(echo $1#$curdate | sha256sum | cut -d " " -f1)"
 printf "ID: $curid\n"
 
 printf "\nDownloading $1...\n\n"
@@ -80,13 +83,16 @@ if [ -d "$1" ]; then
 	printf "\nReorganizing files...\n"
 	mv "www.$1" "$1"/
 	mv "$1" "$curdate#$1#$curid"
-	
+	contenthash="$(find $curdate#$1#$curid -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
-	printf "$curdate#$1#$curid\n" >> "$dbfile"
+	printf "$curdate#$1#$curid#$contenthash\n" >> "$dbfile"
 else
 	printf "Downloading $1 was unsuccessful, quitting...\n"
 	exit 1
 fi
+
+echo "Latest $1:"
+
 
 ## == End script == ##
 printf "\n"
