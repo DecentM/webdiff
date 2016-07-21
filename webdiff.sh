@@ -25,11 +25,12 @@ if [ "$1" = "cleanup" ]; then
 			tormdate="$(echo $l | cut -d "#" -f1)"
 			tormname="$(echo $l | cut -d "#" -f2)"
 			tormhash="$(echo $l | cut -d "#" -f3)"
+			tormchash="$(echo $l | cut -d "#" -f4)"
 			if [ ! -d "$l" ]; then
 				printf "$l doesn't exist! Something fishy happened!\n"
 				exit 2
 			fi
-			printf "$tormname#$(date "$dateformat" -d @$tormdate)#$tormhash\n" >> "$qfile"
+			printf "$tormname#$(date "$dateformat" -d @$tormdate)#$tormhash#$tormchash\n" >> "$qfile"
 			rm -rf "$l/"
 			rm -rf "www.$l/"
 			cleaned=1
@@ -54,14 +55,13 @@ if [ "$1" = "list" ]; then
 		rm -f "$qfile"
 		exit 0
 	else
-		printf "So far, these sites have been downloaded:\n\n"
 		for l in `cat "$dbfile"`
         	do
         	        if [ ! "$l" = "" ]; then
         	                tolsdate="$(echo $l | cut -d "#" -f1)"
         	                tolsname="$(echo $l | cut -d "#" -f2)"
                 	        tolshash="$(echo $l | cut -d "#" -f3)"
-				tolschash="$(echo $l | cut -d "#" -f3)"
+				tolschash="$(echo $l | cut -d "#" -f4)"
                 	        printf "$tolsname#$(date "$dateformat" -d @$tolsdate)#$tolshash#$tolschash\n" >> "$qfile"
                 	fi
         	done
@@ -81,9 +81,11 @@ printf "\nDownloading $1...\n\n"
 wget -nv -E -H -k -K -p "$1"
 if [ -d "$1" ]; then
 	printf "\nReorganizing files...\n"
-	mv "www.$1" "$1"/
-	mv "$1" "$curdate#$1#$curid"
+	if [ -d "www.$1" ]; then
+		mv "www.$1" "$1"/
+	fi
 	contenthash="$(find $curdate#$1#$curid -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
+	mv "$1" "$curdate#$1#$curid#$contenthash"
 	printf "\nDownloaded, writing to arbitrary flatfile database ($dbfile)"
 	printf "$curdate#$1#$curid#$contenthash\n" >> "$dbfile"
 else
