@@ -10,7 +10,7 @@ if [ $# -lt $minargs ]; then
 fi
 
 if [ ! -f "$dbfile" ]; then
-	touch "$dbfeil"
+	touch "$dbfile"
 	exit 1
 fi
 
@@ -138,7 +138,7 @@ if [ "$(cat $dbfile | wc -l)" -gt "2" ]; then
 		exit 2
 	fi
 else
-	printf "We dont have enough copies of the site yet to compare\n"
+	printf "We don't have enough copies of the site yet to compare\n"
 fi
 
 ## == End script == ##
