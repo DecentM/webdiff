@@ -14,7 +14,7 @@ function msg {
         3) sev="Critical";;
     esac
     if [ "$sev" = "Debug" ] && $verbose || [ "$sev" != "Debug" ]; then
-        printf "$(date "$dateformat"): [$sev] $2\n"
+        printf "$(date "$dateformat"): [""$sev""] $(eval echo "$2")\n"
     fi
     case "$1" in
         2)  over 1
@@ -155,7 +155,7 @@ done
 function urlvalid {
     msg "0" "Validating $1"
     resp="$(curl -s --head "$1" | head -n 1 | grep "HTTP/1.[01] [23]..")"
-    msg "0" "URL response was: \"$resp\""
+    msg "0" "URL response was: $resp"
     if [ "$resp" != "" ]; then
         return $(true)
     else
@@ -223,7 +223,7 @@ if urlvalid "$1"; then
     msg "0" "URL validation succeeded, downloading..."
     downloadsite "$1"
     organize "$1"
-    searchnewest
+    #searchnewest "$1"
     if [ "$(cat $dbfile | wc -l)" -gt "2" ]; then
         newest_n="$(($(cat $dbfile | wc -l)))"
         secondnewest_n="$(($(cat $dbfile | wc -l) - 1))"
@@ -242,7 +242,6 @@ if urlvalid "$1"; then
 			else
 				msg "1" "There is a change in HTML, but resources could have been altered as well!"
 			fi
-			#echo "$SCRIPTPATH clean"
 		fi
 	else
 		msg "3" "There has been an internal error, quitting..."
@@ -258,9 +257,9 @@ fi
 msg "0" "Running function as command: $@"
 eval "$@"
 if [ "$?" = 0 ]; then
-    msg "0" "Running \"$@\" was successful"
+    msg "0" "Running \"$1\" was successful"
 else
-    msg "2" "Running \"$@\" was unsuccessful, please check your arguments!"
+    msg "2" "Running \"$1\" was unsuccessful, please check your arguments!"
 fi
 msg "0" "Shifting arguments"
 shift $((OPTIND-1))
