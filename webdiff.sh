@@ -4,6 +4,7 @@ minargs=1
 dbfile="db.webdiff"
 dateformat="+%d/%m/%Y %H:%M.%S"
 tableheader="URL#Date (D/M/Y H:M.S)#Name + Date hash#Content hash#HTML hash"
+tmpdir="/tmp/webdiff"
 
 function msg {
     case "$1" in
@@ -16,10 +17,10 @@ function msg {
         printf "$(date "$dateformat"): [$sev] $2\n"
     fi
     case "$1" in
-        2)  exit 1
+        2)  over 1
             show_help 1
             ;;
-        3)  exit 2;;
+        3)  over 2;;
     esac
 }
 
@@ -77,7 +78,7 @@ function cleanup {
     if [ "$(listdb $1)" = "" ]; then
         msg "2" "There's nothing to clean"
     fi
-    printf "The following entries will be removed:\n"
+    msg "1" "The following entries will be removed:"
     msg "0" "Parsing $dbfile"
     parsedb_table "$1"
     msg "0" "Pausing for confirmation"
@@ -88,8 +89,10 @@ function cleanup {
             do
                 msg "0" "Recursively removing $(parsedb $1 | grep -i $l | cut -d "#" -f1) directory"
                 rm -rf *$l*
+                mv "$dbfile" "tmp.$dbfile"
+                sed "/$l/d" "tmp.$dbfile" > "$dbfile"
+                rm -f "tmp.$dbfile"
             done
-            echo > "$dbfile"
         else
             msg "2" "Aborted"
         fi
@@ -97,15 +100,18 @@ function cleanup {
 
 function downloadsite {
 	msg "1" "Downloading $1..."
-	wget -q -E -H -k -K -p "$1"
+    mkdir -p "$tmpdir"
+    cd "$tmpdir"
+    msg "0" "Switched to $(pwd)"
+	wget -e robots=off -q -E -H -k -K -p "$1"
+    cd - > /dev/null
+    msg "0" "Switched to $(pwd)"
 }
 
 function organize {
+msg "1" "Reorganizing files and directories..."
+mv "$tmpdir" "$1"
 	if [ -d "$1" ]; then
-	        msg "1" "Reorganizing files and directories..."
-	        if [ -d "www.$1" ]; then
-	                mv "www.$1" "$1"/
-	        fi
 	        contenthash="$(find $1 -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	        mv "$1" "$curdate#$1#$curid#$contenthash"
 	        htmlhash="$(find $curdate#$1#$curid#$contenthash -name "*.html" -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
@@ -149,25 +155,28 @@ done
 function urlvalid {
     msg "0" "Validating $1"
     resp="$(curl -s --head "$1" | head -n 1 | grep "HTTP/1.[01] [23]..")"
-    msg "0" "URL response was: $resp"
+    msg "0" "URL response was: \"$resp\""
     if [ "$resp" != "" ]; then
-        msg "0" "URL gives a response"
         return $(true)
     else
-        msg "0" "URL doesn't give a response"
         return $(false)
     fi
 }
-# == USERSPACE == #
+
+function over {
+    msg "0" "Exiting with code $1"
+    exit "$1"
+}
+# == USERSPACE FUNCTIONS == #
 
 function clean {
     cleanup "$1"
-    exit 0
+    over 0
 }
 
 function help {
     show_help 0
-    exit 0
+    over 0
 }
 
 function list {
@@ -176,7 +185,7 @@ function list {
 	else
 		parsedb_table "$1"
 	fi
-	exit 0
+	over 0
 }
 
 verbose=false
@@ -186,11 +195,11 @@ while getopts "vdh?:" opt; do
             show_help 0
             shift $((OPTIND-1))
             [ "$1" = "--" ] && shift
-            exit 0
+            over 0
             ;;
         v|d)
             verbose=true
-            msg "0" "Running on verbose mode"
+            msg "0" "Running in verbose mode"
             shift $((OPTIND-1))
             [ "$1" = "--" ] && shift
             ;;
@@ -198,32 +207,13 @@ while getopts "vdh?:" opt; do
 done
 
 if [ $# -lt $minargs ]; then
-    msg "3" "Argument count must be $minargs, you provided $#\n"
+    msg "2" "Argument count must be $minargs, you provided $#"
 fi
 
 if [ ! -f "$dbfile" ]; then
     msg "0" "Creating $dbfile"
 	touch "$dbfile"
 fi
-
-#if [ "$1" = "clean" ]; then
-#	cleanup "$2"
-#	exit 0
-#fi
-#
-#if [ "$1" = "help" ]; then
-#	show_help 0
-#	exit 0
-#fi
-#
-#if [ "$1" = "list" ]; then
-#	if [ "`listdb "$2"`" == "" ]; then
-#		msg "2" "There are no downloaded sites matching your query!\n"
-#	else
-#		parsedb_table "$2"
-#	fi
-#	exit 0
-#fi
 
 curdate="$(date +""%s"")"
 curid="$(echo $1#$curdate | sha256sum | cut -d " " -f1)"
@@ -246,7 +236,7 @@ if urlvalid "$1"; then
             if [ "$secondnewest_chash" = "$newest_chash" ]; then
                 msg "1" "There has been no change since last time"
             else
-                printf "The site has changed since last time\n"
+                msg "1" "The site has changed since last time"
 			if [ "$secondnewest_hhash" = "$newest_hhash" ]; then
 				msg "1" "This was a resource change, the HTML is the same!"
 			else
@@ -258,9 +248,9 @@ if urlvalid "$1"; then
 		msg "3" "There has been an internal error, quitting..."
 	fi
     else
-        msg "2" "We don't have enough copies of the site yet to compare"
+        msg "1" "We don't have enough copies of the site yet to compare"
     fi
-    exit 0
+    over 0
 else
     msg "0" "URL validation failed, trying to run functions..."
 fi
@@ -278,4 +268,4 @@ shift $((OPTIND-1))
 msg "0" "Remaining arguments: $@"
 
 ## == End script == ##
-printf "\n"
+#printf "\n"
