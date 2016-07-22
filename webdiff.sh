@@ -1,8 +1,8 @@
 #!/bin/bash
 minargs=1
 dbfile="db.webdiff"
-qfile="q.cleanup"
 dateformat="+%d/%m/%Y %H:%M.%S"
+tableheader="URL#Date (D/M/Y H:M.S)#Name + Date hash#Content hash#HTML hash"
 
 if [ $# -lt $minargs ]; then
     printf "Argument count must be $minargs, you provided $#\n"
@@ -10,41 +10,46 @@ if [ $# -lt $minargs ]; then
 fi
 
 if [ ! -f "$dbfile" ]; then
-	printf "$dbfile doesn't exist!\n"
+	touch "$dbfeil"
 	exit 1
 fi
 
+function listdb {
+	cat "$dbfile" | grep -i "$1"
+}
+
+function parsedb {
+    printf "$tableheader\n"
+    for g in `listdb $1`
+    do
+        tolsdate="$(echo $g | cut -d '#' -f1)"
+        tolsname="$(echo $g | cut -d '#' -f2)"
+        tolshash="$(echo $g | cut -d '#' -f3)"
+        tolschash="$(echo $g | cut -d '#' -f4)"
+        tolshhash="$(echo $g | cut -d '#' -f5)"
+        printf "$tolsname#$(date "$dateformat" -d @$tolsdate)#$tolshash#$tolschash#$tolshhash\n"
+    done
+}
+
+function parsedb_table {
+    parsedb "$1" | column -t -s "#"
+}
+
 function cleanup {
 	cleaned=0
-        for l in `cat "$dbfile"`
-        do
-                if [ ! "$l" = "" ]; then
-                        tormdate="$(echo $l | cut -d "#" -f1)"
-                        tormname="$(echo $l | cut -d "#" -f2)"
-                        tormhash="$(echo $l | cut -d "#" -f3)"
-                        tormchash="$(echo $l | cut -d "#" -f4)"
-                        tormhhash="$(echo $l | cut -d "#" -f5)"
-                        if [ ! -d "$l" ]; then
-                                printf "$l doesn't exist! Something fishy happened!\n"
-                                exit 2
-                        fi
-                        printf "$tormname#$(date "$dateformat" -d @$tormdate)#$tormhash#$tormchash#$tormhhash\n" >> "$qfile"
-                        rm -rf "$l/"
-                        if [ -d "www.$1" ]; then
-                                rm -rf "www.$l/"
-                        fi
-                        cleaned=1
-                fi
-        done
-        if [ "$cleaned" = "1" ]; then
-                printf "Removed entries:\n\n"
-                cat "$qfile" | column -t -s "#"
-                printf "\n"
+    printf "The following entries will be removed:\n"
+    parsedb_table "$1"
+    read -r -p "Proceed? [y/N] " response
+        if [[ $response =~ ^([yY][eE][sS]|[yY])$ ]]
+        then
+            for l in `listdb "$1" | cut -d "#" -f3`
+            do
+                rm -rf *$l*
+            done
+            echo > "$dbfile"
         else
-                printf "No need to clean anything here\n"
+            do_something_else
         fi
-        echo > "$dbfile"
-        rm -f "$qfile"
 }
 
 function downloadsite {
@@ -62,7 +67,7 @@ function organize {
 	        mv "$1" "$curdate#$1#$curid#$contenthash"
 	        htmlhash="$(find $curdate#$1#$curid#$contenthash -name "*.html" -type f -exec cat {} \; | sha256sum | cut -d ' ' -f1)"
 	        mv "$curdate#$1#$curid#$contenthash" "$curdate#$1#$curid#$contenthash#$htmlhash"
-	        printf "Downloaded, writing to arbitrary flatfile database ($dbfile)\n"
+	        printf "Downloaded, writing to arbitrary flatfile database: $dbfile\n"
 	        printf "$curdate#$1#$curid#$contenthash#$htmlhash\n" >> "$dbfile"
 	else
 	        printf "There was nothing to organize. Are you sure you downloaded a vaild website?\n"
@@ -70,39 +75,18 @@ function organize {
 	fi
 }
 
-function listdb {
-	for l in `cat "$dbfile" | grep -i "$1"`
-        do
-        	if [ ! "$l" = "" ]; then
-        		tolsdate="$(echo $l | cut -d "#" -f1)"
-        		tolsname="$(echo $l | cut -d "#" -f2)"
-        		tolshash="$(echo $l | cut -d "#" -f3)"
-        		tolschash="$(echo $l | cut -d "#" -f4)"
-        		tolshhash="$(echo $l | cut -d "#" -f5)"
-        		printf "$tolsname#$(date "$dateformat" -d @$tolsdate)#$tolshash#$tolschash#$tolshhash\n" >> "$qfile"
-        	fi
-        done
-}
-
-printf "URL#Date (DD/MM/YYYY)#Name + Date hash#Content hash#HTML hash\n" > "$qfile"
-
 if [ "$1" = "clean" ]; then
-	printf "Cleaning up...\n"
-	cleanup
-	printf "Cleanup finished\n"
+	cleanup "$2"
 	exit 0
 fi
 
 if [ "$1" = "list" ]; then
-	if [ "$(cat $dbfile | grep $2)" == "" ]; then
+	if [ "`listdb "$2"`" == "" ]; then
 		printf "There are no downloaded sites matching your query!\n"
-		rm -f "$qfile"
 		exit 0
 	else
-		listdb "$2"
-		cat "$qfile" | column -t -s "#"
+		parsedb_table "$2"
 	fi
-	rm -f "$qfile"
 	exit 0
 fi
 
@@ -118,10 +102,10 @@ cbeforedate="0"
 for l in `cat "$dbfile" | grep -i "$1"`
 do
 	if [ ! "$l" = "" ]; then
-		cdate="$(echo $l | cut -d "#" -f1)"
-		cname="$(echo $l | cut -d "#" -f2)"
-		chash="$(echo $l | cut -d "#" -f3)"
-		cchash="$(echo $l | cut -d "#" -f4)"
+		cdate="$(echo $l | cut -d '#' -f1)"
+		cname="$(echo $l | cut -d '#' -f2)"
+		chash="$(echo $l | cut -d '#' -f3)"
+		cchash="$(echo $l | cut -d '#' -f4)"
 		if [ "$cbeforedate" -gt "$cdate" ]; then
 			newest="$chash"
 		fi
@@ -132,10 +116,10 @@ done
 if [ "$(cat $dbfile | wc -l)" -gt "2" ]; then
 	newest_n="$(($(cat $dbfile | wc -l)))"
 	secondnewest_n="$(($(cat $dbfile | wc -l) - 1))"
-	newest_chash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d "#" -f4)
-	secondnewest_chash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d "#" -f4)
-	newest_hhash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d "#" -f5)
-        secondnewest_hhash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d "#" -f5)
+	newest_chash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d '#' -f4)
+	secondnewest_chash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d '#' -f4)
+	newest_hhash=$(head -n"$newest_n" $dbfile | tail -1 | cut -d '#' -f5)
+        secondnewest_hhash=$(head -n"$secondnewest_n" $dbfile | tail -1 | cut -d '#' -f5)
 
 	if [ "$secondnewest_chash" != "" ] && [ "$newest_chash" != "" ]; then
 		if [ "$secondnewest_chash" = "$newest_chash" ]; then
@@ -154,7 +138,7 @@ if [ "$(cat $dbfile | wc -l)" -gt "2" ]; then
 		exit 2
 	fi
 else
-	printf "We don't have enough copies of the site yet to compare\n"
+	printf "We dont have enough copies of the site yet to compare\n"
 fi
 
 ## == End script == ##
